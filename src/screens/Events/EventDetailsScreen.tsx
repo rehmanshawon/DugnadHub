@@ -5,7 +5,7 @@
  * participation controls. Handles sign-up flow, favourite toggling, and keeps the
  * UI in sync with Firestore updates for the active event.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,12 +16,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  RouteProp,
-  useFocusEffect,
-  useNavigation,
-  useRoute,
-} from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import {
   addDoc,
   collection,
@@ -30,6 +25,7 @@ import {
   getDoc,
   getDocs,
   increment,
+  onSnapshot,
   query,
   updateDoc,
   where,
@@ -73,87 +69,92 @@ const EventDetailsScreen: React.FC = () => {
     return event.category;
   }, [event?.category, t]);
 
-  const loadEvent = useCallback(async () => {
+  useEffect(() => {
     if (!eventId) return;
+
     setLoading(true);
     setError(null);
-    try {
-      const docRef = doc(db, "events", eventId);
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        setEvent(null);
-        setError(t("eventDetails.notFound"));
-        return;
-      }
-      const data = snap.data() as any;
-      const ev: Event = {
-        id: snap.id,
-        title: data.title,
-        description: data.description,
-        tasks: data.tasks,
-        category: data.category,
-        locationText: data.locationText,
-        dateTime: data.dateTime?.toDate?.() ?? new Date(),
-        createdBy: data.createdBy,
-        maxVolunteers: data.maxVolunteers,
-        currentVolunteers: data.currentVolunteers,
-        imageUrls: data.imageUrls || [],
-      };
-      setEvent(ev);
 
-      if (appUser) {
-        await checkParticipation(ev.id, appUser.id);
-        await checkFavorite(ev.id, appUser.id);
-      } else {
-        setIsSignedUp(false);
-        setParticipationId(null);
-        setFavoriteId(null);
+    const eventRef = doc(db, "events", eventId);
+    const unsubscribe = onSnapshot(
+      eventRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          setEvent(null);
+          setError(t("eventDetails.notFound"));
+          setLoading(false);
+          return;
+        }
+
+        const data = snapshot.data() as any;
+        const ev: Event = {
+          id: snapshot.id,
+          title: data.title,
+          description: data.description,
+          tasks: data.tasks,
+          category: data.category,
+          locationText: data.locationText,
+          dateTime: data.dateTime?.toDate?.() ?? new Date(),
+          createdBy: data.createdBy,
+          maxVolunteers: data.maxVolunteers,
+          currentVolunteers: data.currentVolunteers,
+          imageUrls: data.imageUrls || [],
+        };
+        setEvent(ev);
+        setLoading(false);
+      },
+      (snapshotError) => {
+        setError(snapshotError.message ?? t("eventDetails.errorLoad"));
+        setLoading(false);
       }
-    } catch (e: any) {
-      setError(e.message ?? t("eventDetails.errorLoad"));
-    } finally {
-      setLoading(false);
+    );
+
+    return () => unsubscribe();
+  }, [eventId, t]);
+
+  useEffect(() => {
+    if (!eventId || !appUser?.id) {
+      setIsSignedUp(false);
+      setParticipationId(null);
+      setFavoriteId(null);
+      return;
     }
-  }, [appUser, eventId, t]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadEvent();
-    }, [loadEvent])
-  );
-
-  // Determine whether the current user has already signed up for this event.
-  const checkParticipation = async (eventId: string, userId: string) => {
     const participationQuery = query(
       collection(db, "participations"),
       where("eventId", "==", eventId),
-      where("userId", "==", userId),
+      where("userId", "==", appUser.id),
       where("status", "==", "signed_up")
     );
-    const participationSnapshot = await getDocs(participationQuery);
-    if (!participationSnapshot.empty) {
-      setIsSignedUp(true);
-      setParticipationId(participationSnapshot.docs[0].id);
-    } else {
-      setIsSignedUp(false);
-      setParticipationId(null);
-    }
-  };
-
-  // Look up the favourite document so we can display correct heart state and support toggling.
-  const checkFavorite = async (eventId: string, userId: string) => {
     const favoritesQuery = query(
       collection(db, "favorites"),
       where("eventId", "==", eventId),
-      where("userId", "==", userId)
+      where("userId", "==", appUser.id)
     );
-    const favoritesSnapshot = await getDocs(favoritesQuery);
-    if (!favoritesSnapshot.empty) {
-      setFavoriteId(favoritesSnapshot.docs[0].id);
-    } else {
-      setFavoriteId(null);
-    }
-  };
+
+    const unsubscribeParticipation = onSnapshot(participationQuery, (snap) => {
+      if (!snap.empty) {
+        setIsSignedUp(true);
+        setParticipationId(snap.docs[0].id);
+      } else {
+        setIsSignedUp(false);
+        setParticipationId(null);
+      }
+    });
+
+    const unsubscribeFavorites = onSnapshot(favoritesQuery, (snap) => {
+      if (!snap.empty) {
+        setFavoriteId(snap.docs[0].id);
+      } else {
+        setFavoriteId(null);
+      }
+    });
+
+    return () => {
+      unsubscribeParticipation();
+      unsubscribeFavorites();
+    };
+  }, [appUser?.id, eventId]);
 
   // Simplified sign-up flow: create participation and increment volunteer count.
   const handleSignUp = async () => {

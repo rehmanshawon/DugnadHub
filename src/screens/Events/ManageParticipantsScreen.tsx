@@ -5,7 +5,13 @@
  * Provides quick actions to remove or reinstate participants and keeps the
  * displayed capacity in sync with Firestore.
  */
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,13 +25,13 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { RouteProp, useFocusEffect, useRoute } from "@react-navigation/native";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import {
   collection,
   doc,
   getDoc,
-  getDocs,
   increment,
+  onSnapshot,
   query,
   updateDoc,
   where,
@@ -78,6 +84,7 @@ const ManageParticipantsScreen: React.FC = () => {
     maxVolunteers: number;
     ownerId: string;
   } | null>(null);
+  const refreshTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeParticipants = useMemo(
     () => participants.filter((p) => p.status === "signed_up"),
@@ -107,109 +114,197 @@ const ManageParticipantsScreen: React.FC = () => {
     [locale, t]
   );
 
-  const loadParticipants = useCallback(async () => {
+  useEffect(() => {
     if (!eventId) return;
+
+    let isMounted = true;
+    setLoading(true);
     setError(null);
-    try {
-      const participationSnap = await getDocs(
-        query(collection(db, "participations"), where("eventId", "==", eventId))
-      );
 
-      const rows: ParticipantRow[] = await Promise.all(
-        participationSnap.docs.map(async (docSnap) => {
-          const data = docSnap.data() as any;
-          let displayName = "";
-          let email = "";
-
-          try {
-            const userSnap = await getDoc(doc(db, "users", data.userId));
-            if (userSnap.exists()) {
-              const userData = userSnap.data() as any;
-              displayName = userData.displayName || "";
-              email = userData.email || "";
-            }
-          } catch (userError) {
-            console.warn("Failed to load user profile", userError);
+    const eventRef = doc(db, "events", eventId);
+    const unsubscribe = onSnapshot(
+      eventRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          if (isMounted) {
+            setAllowed(false);
+            setEventStats(null);
+            setError(t("manageParticipants.eventMissing"));
+            setLoading(false);
           }
+          return;
+        }
 
-          return {
-            id: docSnap.id,
-            userId: data.userId,
-            status: (data.status as Participation["status"]) || "signed_up",
-            createdAt: data.createdAt?.toDate?.() ?? null,
-            displayName:
-              displayName || email || t("manageParticipants.unknownUser"),
-            email,
-          };
-        })
-      );
+        const eventData = snapshot.data() as any;
+        const ownerId = eventData.createdBy;
 
-      rows.sort(
-        (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)
-      );
+        if (!appUser) {
+          if (isMounted) {
+            setAllowed(false);
+            setEventStats({
+              title: eventData.title ?? "",
+              currentVolunteers: eventData.currentVolunteers ?? 0,
+              maxVolunteers: eventData.maxVolunteers ?? 0,
+              ownerId,
+            });
+            setError(t("manageParticipants.authRequired"));
+            setLoading(false);
+          }
+          return;
+        }
 
-      setParticipants(rows);
-    } catch (err: any) {
-      setError(err?.message ?? t("manageParticipants.errorLoad"));
-    } finally {
+        if (ownerId !== appUser.id) {
+          if (isMounted) {
+            setAllowed(false);
+            setEventStats({
+              title: eventData.title ?? "",
+              currentVolunteers: eventData.currentVolunteers ?? 0,
+              maxVolunteers: eventData.maxVolunteers ?? 0,
+              ownerId,
+            });
+            setError(t("manageParticipants.notOwner"));
+            setLoading(false);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setAllowed(true);
+          setEventStats({
+            title: eventData.title ?? "",
+            currentVolunteers: eventData.currentVolunteers ?? 0,
+            maxVolunteers: eventData.maxVolunteers ?? 0,
+            ownerId,
+          });
+          setError(null);
+          setLoading(false);
+        }
+      },
+      (snapshotError) => {
+        if (isMounted) {
+          setAllowed(false);
+          setEventStats(null);
+          setError(snapshotError.message ?? t("manageParticipants.errorLoad"));
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [appUser, eventId, t]);
+
+  useEffect(() => {
+    if (!eventId || !allowed || !appUser) {
+      setParticipants([]);
       setRefreshing(false);
-    }
-  }, [eventId, t]);
-
-  const initialise = useCallback(async () => {
-    if (!eventId) return;
-    if (!appUser) {
-      setAllowed(false);
-      setError(t("manageParticipants.authRequired"));
-      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError(null);
-    try {
-      const eventRef = doc(db, "events", eventId);
-      const eventSnap = await getDoc(eventRef);
-      if (!eventSnap.exists()) {
-        setAllowed(false);
-        setError(t("manageParticipants.eventMissing"));
-        return;
+    let isMounted = true;
+    const userCache = new Map<string, { displayName: string; email: string }>();
+
+    const participationQuery = query(
+      collection(db, "participations"),
+      where("eventId", "==", eventId)
+    );
+
+    const unsubscribe = onSnapshot(
+      participationQuery,
+      async (snapshot) => {
+        try {
+          const rows: ParticipantRow[] = await Promise.all(
+            snapshot.docs.map(async (docSnap) => {
+              const data = docSnap.data() as any;
+              const userId = data.userId as string;
+
+              let profile = userCache.get(userId);
+              if (!profile) {
+                try {
+                  const userSnap = await getDoc(doc(db, "users", userId));
+                  if (userSnap.exists()) {
+                    const userData = userSnap.data() as any;
+                    profile = {
+                      displayName: userData.displayName || "",
+                      email: userData.email || "",
+                    };
+                  } else {
+                    profile = { displayName: "", email: "" };
+                  }
+                } catch (userError) {
+                  console.warn("Failed to load user profile", userError);
+                  profile = { displayName: "", email: "" };
+                }
+                userCache.set(userId, profile);
+              }
+
+              const createdAtRaw = data.createdAt;
+              const createdAt = createdAtRaw?.toDate?.()
+                ? createdAtRaw.toDate()
+                : createdAtRaw instanceof Date
+                ? createdAtRaw
+                : null;
+
+              return {
+                id: docSnap.id,
+                userId,
+                status: (data.status as Participation["status"]) || "signed_up",
+                createdAt,
+                displayName:
+                  profile?.displayName ||
+                  profile?.email ||
+                  t("manageParticipants.unknownUser"),
+                email: profile?.email ?? "",
+              };
+            })
+          );
+
+          rows.sort(
+            (a, b) =>
+              (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)
+          );
+
+          if (isMounted) {
+            setParticipants(rows);
+            setError(null);
+          }
+        } catch (err: any) {
+          if (isMounted) {
+            setError(err?.message ?? t("manageParticipants.errorLoad"));
+          }
+        } finally {
+          if (isMounted) {
+            setRefreshing(false);
+          }
+        }
+      },
+      (snapshotError) => {
+        if (isMounted) {
+          setParticipants([]);
+          setError(snapshotError.message ?? t("manageParticipants.errorLoad"));
+          setRefreshing(false);
+        }
       }
+    );
 
-      const eventData = eventSnap.data() as any;
-      if (eventData.createdBy !== appUser.id) {
-        setAllowed(false);
-        setError(t("manageParticipants.notOwner"));
-        return;
-      }
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [allowed, appUser, eventId, t]);
 
-      setAllowed(true);
-      setEventStats({
-        title: eventData.title ?? "",
-        currentVolunteers: eventData.currentVolunteers ?? 0,
-        maxVolunteers: eventData.maxVolunteers ?? 0,
-        ownerId: eventData.createdBy,
-      });
-
-      await loadParticipants();
-    } catch (err: any) {
-      setError(err?.message ?? t("manageParticipants.errorLoad"));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [appUser, eventId, loadParticipants, t]);
-
-  useFocusEffect(
-    useCallback(() => {
-      initialise();
-    }, [initialise])
-  );
-
-  const handleRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    await loadParticipants();
-  }, [loadParticipants]);
+    if (refreshTimeout.current) {
+      clearTimeout(refreshTimeout.current);
+    }
+    refreshTimeout.current = setTimeout(() => {
+      setRefreshing(false);
+      refreshTimeout.current = null;
+    }, 400);
+  }, []);
 
   const handleStatusChange = useCallback(
     async (
@@ -256,39 +351,14 @@ const ManageParticipantsScreen: React.FC = () => {
         if (delta !== 0) {
           const eventRef = doc(db, "events", eventId);
           await updateDoc(eventRef, { currentVolunteers: increment(delta) });
-          setEventStats((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  currentVolunteers: Math.max(
-                    Math.min(
-                      prev.currentVolunteers + delta,
-                      prev.maxVolunteers
-                    ),
-                    0
-                  ),
-                }
-              : prev
-          );
         }
-
-        setParticipants((prev) => {
-          const next = prev.map((row) =>
-            row.id === participant.id ? { ...row, status: nextStatus } : row
-          );
-          next.sort(
-            (a, b) =>
-              (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0)
-          );
-          return next;
-        });
       } catch (err: any) {
         setError(err?.message ?? t("manageParticipants.errorUpdate"));
       } finally {
         setUpdatingId(null);
       }
     },
-    [eventId, eventStats, t]
+    [appUser, eventId, eventStats, t]
   );
 
   const confirmStatusChange = useCallback(
@@ -382,6 +452,14 @@ const ManageParticipantsScreen: React.FC = () => {
     },
     [confirmStatusChange, formatJoinedLabel, t, updatingId]
   );
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeout.current) {
+        clearTimeout(refreshTimeout.current);
+      }
+    };
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>

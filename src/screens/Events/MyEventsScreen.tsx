@@ -9,17 +9,10 @@ import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import { useAuth } from "../../context/AuthContext";
-import { Event, Participation } from "../../types";
+import { Event } from "../../types";
 import EventCard from "../../components/EventCard";
 import LanguageSwitcher from "../../components/LanguageSwitcher";
 import { useNavigation } from "@react-navigation/native";
@@ -33,52 +26,120 @@ const MyEventsScreen: React.FC = () => {
   const { t } = useLanguage();
 
   useEffect(() => {
-    // Load the user's participations and join with event metadata for display.
-    const load = async () => {
-      if (!appUser) return;
-      const pQuery = query(
-        collection(db, "participations"),
-        where("userId", "==", appUser.id),
-        where("status", "==", "signed_up")
-      );
-      const snap = await getDocs(pQuery);
-      const participations: Participation[] = snap.docs.map((d) => {
-        const data = d.data() as any;
-        return {
-          id: d.id,
-          userId: data.userId,
-          eventId: data.eventId,
-          status: data.status,
-          createdAt: data.createdAt?.toDate?.() ?? new Date(),
-        };
-      });
+    if (!appUser?.id) {
+      setEvents([]);
+      return;
+    }
 
-      const eventIds = participations.map((p) => p.eventId);
-      const results: Event[] = [];
-      for (const id of eventIds) {
-        const evSnap = await getDoc(doc(db, "events", id));
-        if (evSnap.exists()) {
-          const data = evSnap.data() as any;
-          results.push({
-            id: evSnap.id,
-            title: data.title,
-            description: data.description,
-            tasks: data.tasks,
-            category: data.category,
-            locationText: data.locationText,
-            dateTime: data.dateTime?.toDate?.() ?? new Date(),
-            createdBy: data.createdBy,
-            maxVolunteers: data.maxVolunteers,
-            currentVolunteers: data.currentVolunteers,
-            imageUrls: data.imageUrls || [],
-          });
-        }
-      }
-      setEvents(results);
+    let isMounted = true;
+    const eventCache = new Map<string, Event>();
+    const eventSubscriptions = new Map<string, () => void>();
+    let latestParticipationDocs: any[] = [];
+
+    const recomputeEvents = () => {
+      if (!isMounted) return;
+      const ordered = [...latestParticipationDocs]
+        .sort((a, b) => {
+          const aData = a.data() as any;
+          const bData = b.data() as any;
+          const aDate =
+            aData.createdAt?.toDate?.()?.getTime?.() ??
+            aData.createdAt?.getTime?.() ??
+            0;
+          const bDate =
+            bData.createdAt?.toDate?.()?.getTime?.() ??
+            bData.createdAt?.getTime?.() ??
+            0;
+          return bDate - aDate;
+        })
+        .map((docSnap) => {
+          const data = docSnap.data() as any;
+          return eventCache.get(data.eventId);
+        })
+        .filter((event): event is Event => Boolean(event));
+      setEvents(ordered);
     };
 
-    load();
-  }, [appUser]);
+    const participationQuery = query(
+      collection(db, "participations"),
+      where("userId", "==", appUser.id),
+      where("status", "==", "signed_up")
+    );
+
+    const unsubscribeParticipations = onSnapshot(
+      participationQuery,
+      (snapshot) => {
+        latestParticipationDocs = snapshot.docs;
+        const nextEventIds = new Set(
+          snapshot.docs.map((docSnap) => {
+            const data = docSnap.data() as any;
+            return data.eventId as string;
+          })
+        );
+
+        // Remove subscriptions for events no longer referenced.
+        eventSubscriptions.forEach((unsubscribe, eventId) => {
+          if (!nextEventIds.has(eventId)) {
+            unsubscribe();
+            eventSubscriptions.delete(eventId);
+            eventCache.delete(eventId);
+          }
+        });
+
+        // Add subscriptions for new event references.
+        nextEventIds.forEach((eventId) => {
+          if (eventSubscriptions.has(eventId)) {
+            return;
+          }
+          const eventRef = doc(db, "events", eventId);
+          const unsubscribeEvent = onSnapshot(
+            eventRef,
+            (eventSnap) => {
+              if (!eventSnap.exists()) {
+                eventCache.delete(eventId);
+              } else {
+                const eventData = eventSnap.data() as any;
+                eventCache.set(eventId, {
+                  id: eventSnap.id,
+                  title: eventData.title,
+                  description: eventData.description,
+                  tasks: eventData.tasks,
+                  category: eventData.category,
+                  locationText: eventData.locationText,
+                  dateTime: eventData.dateTime?.toDate?.() ?? new Date(),
+                  createdBy: eventData.createdBy,
+                  maxVolunteers: eventData.maxVolunteers,
+                  currentVolunteers: eventData.currentVolunteers,
+                  imageUrls: eventData.imageUrls || [],
+                });
+              }
+              recomputeEvents();
+            },
+            (error) => {
+              console.warn("Failed to stream event", error);
+            }
+          );
+          eventSubscriptions.set(eventId, unsubscribeEvent);
+        });
+
+        recomputeEvents();
+      },
+      (error) => {
+        console.warn("Failed to stream participations", error);
+        if (isMounted) {
+          setEvents([]);
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribeParticipations();
+      eventSubscriptions.forEach((unsubscribe) => unsubscribe());
+      eventSubscriptions.clear();
+      eventCache.clear();
+    };
+  }, [appUser?.id]);
 
   if (!appUser) {
     return (

@@ -7,7 +7,13 @@
  */
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { auth, db } from "../firebaseConfig";
 import { AppUser, UserRole } from "../types";
 
@@ -36,7 +42,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Listen to auth changes and sync the richer AppUser document when it exists.
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeUserDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      unsubscribeUserDoc?.();
+      unsubscribeUserDoc = null;
+
       setFirebaseUser(user);
       if (!user) {
         setAppUser(null);
@@ -44,7 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      // Load or create user doc
+      setLoading(true);
       const ref = doc(db, "users", user.uid);
       const snap = await getDoc(ref);
 
@@ -57,25 +68,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           role: defaultRole,
           createdAt: serverTimestamp(),
         });
-        setAppUser({
-          id: user.uid,
-          email: user.email || "",
-          displayName: user.displayName || "",
-          role: defaultRole,
-        });
-      } else {
-        const data = snap.data();
-        setAppUser({
-          id: user.uid,
-          email: data.email,
-          displayName: data.displayName,
-          role: data.role as UserRole,
-        });
       }
-      setLoading(false);
+
+      unsubscribeUserDoc = onSnapshot(
+        ref,
+        (docSnap) => {
+          const data = docSnap.data();
+          if (!data) {
+            setAppUser(null);
+            return;
+          }
+
+          setAppUser({
+            id: user.uid,
+            email: data.email,
+            displayName: data.displayName,
+            role: data.role as UserRole,
+          });
+          setLoading(false);
+        },
+        (error) => {
+          console.warn("Failed to subscribe to user profile", error);
+          setAppUser({
+            id: user.uid,
+            email: user.email || "",
+            displayName: user.displayName || "",
+            role: "volunteer",
+          });
+          setLoading(false);
+        }
+      );
     });
 
-    return () => unsub();
+    return () => {
+      unsubscribeAuth();
+      unsubscribeUserDoc?.();
+    };
   }, []);
 
   const signOutUser = async () => {

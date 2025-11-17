@@ -159,7 +159,6 @@ const ProfileScreen: React.FC = () => {
     const updatedRole: UserRole =
       appUser.role === "volunteer" ? "organiser" : "volunteer";
     await updateDoc(doc(db, "users", appUser.id), { role: updatedRole });
-    await signOutUser();
   };
 
   if (!appUser) {
