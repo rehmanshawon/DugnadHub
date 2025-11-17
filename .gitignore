@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# client deliverables
+TDS200_h25_74.zip

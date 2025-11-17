@@ -5,7 +5,7 @@
  * media capture, validation, Firestore persistence, and image uploads to Firebase
  * Storage before refreshing the UI with a success message.
  */
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,12 +16,16 @@ import {
   Image,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   serverTimestamp,
   Timestamp,
   updateDoc,
@@ -37,6 +41,8 @@ import OutlinedButton from "../../components/OutlinedButton";
 import { colors } from "../../theme/colors";
 
 const CreateEventScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { appUser } = useAuth();
   const { t, language } = useLanguage();
   const [title, setTitle] = useState("");
@@ -49,7 +55,14 @@ const CreateEventScreen: React.FC = () => {
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [initialising, setInitialising] = useState(false);
+  const [existingVolunteers, setExistingVolunteers] = useState(0);
+  const [canEdit, setCanEdit] = useState(true);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const editingEventId =
+    (route?.params?.eventId as string | undefined) ?? undefined;
+  const modeParam = route?.params?.mode as "create" | "edit" | undefined;
+  const isEditing = modeParam === "edit" || Boolean(editingEventId);
 
   // Pre-format the selected date/time in the active locale for display.
   const formattedDate = useMemo(() => {
@@ -104,6 +117,10 @@ const CreateEventScreen: React.FC = () => {
   const uploadImages = async (eventId: string) => {
     const urls: string[] = [];
     for (const uri of images) {
+      if (uri.startsWith("http")) {
+        urls.push(uri);
+        continue;
+      }
       const response = await fetch(uri);
       const blob = await response.blob();
       const filename = `${eventId}/${Date.now()}.jpg`;
@@ -115,8 +132,51 @@ const CreateEventScreen: React.FC = () => {
     return urls;
   };
 
-  // Validate input, create the event document, and patch it with uploaded images.
-  const handleCreate = async () => {
+  useEffect(() => {
+    const loadExisting = async () => {
+      if (!isEditing || !editingEventId || !appUser) {
+        setInitialising(false);
+        return;
+      }
+
+      setInitialising(true);
+      try {
+        const eventRef = doc(db, "events", editingEventId);
+        const snapshot = await getDoc(eventRef);
+        if (!snapshot.exists()) {
+          setError(t("createEvent.errorLoadExisting"));
+          return;
+        }
+
+        const data = snapshot.data() as any;
+        if (data.createdBy !== appUser.id) {
+          setError(t("createEvent.errorNotOwner"));
+          setCanEdit(false);
+          return;
+        }
+
+        setCanEdit(true);
+        setTitle(data.title ?? "");
+        setDescription(data.description ?? "");
+        setTasks(data.tasks ?? "");
+        setCategory(data.category ?? "Cleanup");
+        setLocationText(data.locationText ?? "");
+        setDateTime(data.dateTime?.toDate?.() ?? new Date());
+        setMaxVolunteers(String(data.maxVolunteers ?? ""));
+        setImages(data.imageUrls ?? []);
+        setExistingVolunteers(data.currentVolunteers ?? 0);
+      } catch (err: any) {
+        setError(err?.message ?? t("createEvent.errorLoadExisting"));
+      } finally {
+        setInitialising(false);
+      }
+    };
+
+    loadExisting();
+  }, [appUser, editingEventId, isEditing, t]);
+
+  // Validate input, create/update the event document, and persist images.
+  const handleSubmit = async () => {
     setError(null);
     if (!appUser) {
       setError(t("createEvent.authRequired"));
@@ -135,37 +195,73 @@ const CreateEventScreen: React.FC = () => {
 
     try {
       setSaving(true);
-      const evRef = await addDoc(collection(db, "events"), {
-        title,
-        description,
-        tasks,
-        category,
-        locationText,
-        dateTime: Timestamp.fromDate(dateTime),
-        createdBy: appUser.id,
-        maxVolunteers: numericMax,
-        currentVolunteers: 0,
-        imageUrls: [],
-        createdAt: serverTimestamp(),
-      });
+      if (isEditing && editingEventId) {
+        const eventRef = doc(db, "events", editingEventId);
+        const existingSnapshot = await getDoc(eventRef);
+        if (!existingSnapshot.exists()) {
+          setError(t("createEvent.errorLoadExisting"));
+          setSaving(false);
+          return;
+        }
+        const existingData = existingSnapshot.data() as any;
+        if (existingData.createdBy !== appUser.id) {
+          setError(t("createEvent.errorNotOwner"));
+          setSaving(false);
+          return;
+        }
+        await updateDoc(eventRef, {
+          title,
+          description,
+          tasks,
+          category,
+          locationText,
+          dateTime: Timestamp.fromDate(dateTime),
+          maxVolunteers: numericMax,
+          currentVolunteers: Math.min(existingVolunteers, numericMax),
+        });
+        setExistingVolunteers((prev) => Math.min(prev, numericMax));
 
-      const urls = await uploadImages(evRef.id);
-      // update event with image urls after initial create
-      if (urls.length) {
-        await updateDoc(evRef, { imageUrls: urls });
+        const urls = await uploadImages(editingEventId);
+        await updateDoc(eventRef, { imageUrls: urls });
+
+        Alert.alert(
+          t("createEvent.successTitle"),
+          t("createEvent.updateSuccess")
+        );
+        navigation.goBack();
+      } else {
+        const evRef = await addDoc(collection(db, "events"), {
+          title,
+          description,
+          tasks,
+          category,
+          locationText,
+          dateTime: Timestamp.fromDate(dateTime),
+          createdBy: appUser.id,
+          maxVolunteers: numericMax,
+          currentVolunteers: 0,
+          imageUrls: [],
+          createdAt: serverTimestamp(),
+        });
+
+        const urls = await uploadImages(evRef.id);
+        if (urls.length) {
+          await updateDoc(evRef, { imageUrls: urls });
+        }
+
+        Alert.alert(
+          t("createEvent.successTitle"),
+          t("createEvent.successMessage")
+        );
+        setTitle("");
+        setDescription("");
+        setTasks("");
+        setCategory("Cleanup");
+        setLocationText("");
+        setDateTime(null);
+        setMaxVolunteers("10");
+        setImages([]);
       }
-
-      Alert.alert(
-        t("createEvent.successTitle"),
-        t("createEvent.successMessage")
-      );
-      setTitle("");
-      setDescription("");
-      setTasks("");
-      setLocationText("");
-      setDateTime(null);
-      setMaxVolunteers("10");
-      setImages([]);
     } catch (e: any) {
       console.log(e);
       setError(e.message ?? t("createEvent.errorGeneric"));
@@ -203,11 +299,32 @@ const CreateEventScreen: React.FC = () => {
   };
 
   // Volunteers are shown a friendly message instead of the full editor.
+  if (initialising) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingLabel}>
+          {t("createEvent.loadingExisting")}
+        </Text>
+      </View>
+    );
+  }
+
   if (appUser?.role !== "organiser") {
     return (
       <View style={styles.center}>
         <Text style={{ color: colors.textPrimary }}>
           {t("createEvent.organiserOnly")}
+        </Text>
+      </View>
+    );
+  }
+
+  if (isEditing && !canEdit) {
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: colors.textPrimary }}>
+          {t("createEvent.errorNotOwner")}
         </Text>
       </View>
     );
@@ -219,8 +336,12 @@ const CreateEventScreen: React.FC = () => {
       style={{ backgroundColor: colors.background }}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>{t("createEvent.title")}</Text>
-      <Text style={styles.subtitle}>{t("createEvent.subtitle")}</Text>
+      <Text style={styles.title}>
+        {isEditing ? t("createEvent.editTitle") : t("createEvent.title")}
+      </Text>
+      <Text style={styles.subtitle}>
+        {isEditing ? t("createEvent.editSubtitle") : t("createEvent.subtitle")}
+      </Text>
       <ErrorBanner message={error} />
 
       <View style={styles.card}>
@@ -346,9 +467,17 @@ const CreateEventScreen: React.FC = () => {
       </View>
 
       <PrimaryButton
-        title={saving ? t("createEvent.loading") : t("createEvent.button")}
-        icon="rocket-launch"
-        onPress={handleCreate}
+        title={
+          saving
+            ? isEditing
+              ? t("createEvent.loadingUpdate")
+              : t("createEvent.loading")
+            : isEditing
+            ? t("createEvent.updateButton")
+            : t("createEvent.button")
+        }
+        icon={isEditing ? "content-save" : "rocket-launch"}
+        onPress={handleSubmit}
         disabled={saving}
       />
 
@@ -381,6 +510,11 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 6,
     marginBottom: 18,
+  },
+  loadingLabel: {
+    marginTop: 12,
+    color: colors.textSecondary,
+    fontSize: 14,
   },
   card: {
     backgroundColor: colors.surface,

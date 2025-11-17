@@ -5,7 +5,7 @@
  * participation controls. Handles sign-up flow, favourite toggling, and keeps the
  * UI in sync with Firestore updates for the active event.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,12 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import {
+  RouteProp,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import {
   addDoc,
   collection,
@@ -24,6 +29,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   query,
   updateDoc,
   where,
@@ -45,6 +51,7 @@ type EventDetailsRouteProp = RouteProp<any, "EventDetails">;
 const EventDetailsScreen: React.FC = () => {
   const route = useRoute<EventDetailsRouteProp>();
   const { eventId } = route.params as any;
+  const navigation = useNavigation<any>();
   const { appUser } = useAuth();
   const { t, language } = useLanguage();
 
@@ -53,6 +60,9 @@ const EventDetailsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSignedUp, setIsSignedUp] = useState(false);
   const [favoriteId, setFavoriteId] = useState<string | null>(null);
+  const [participationId, setParticipationId] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const locale = language === "no" ? "nb-NO" : "en-GB";
   const categoryLabel = useMemo(() => {
     if (!event?.category) return "";
@@ -63,47 +73,54 @@ const EventDetailsScreen: React.FC = () => {
     return event.category;
   }, [event?.category, t]);
 
-  useEffect(() => {
-    // Fetch the event document once and pre-load participation/favourite state for logged in users.
-    const load = async () => {
-      if (!eventId) return;
-      try {
-        const docRef = doc(db, "events", eventId);
-        const snap = await getDoc(docRef);
-        if (!snap.exists()) {
-          setError(t("eventDetails.notFound"));
-          setLoading(false);
-          return;
-        }
-        const data = snap.data() as any;
-        const ev: Event = {
-          id: snap.id,
-          title: data.title,
-          description: data.description,
-          tasks: data.tasks,
-          category: data.category,
-          locationText: data.locationText,
-          dateTime: data.dateTime?.toDate?.() ?? new Date(),
-          createdBy: data.createdBy,
-          maxVolunteers: data.maxVolunteers,
-          currentVolunteers: data.currentVolunteers,
-          imageUrls: data.imageUrls || [],
-        };
-        setEvent(ev);
-
-        if (appUser) {
-          await checkParticipation(ev.id, appUser.id);
-          await checkFavorite(ev.id, appUser.id);
-        }
-      } catch (e: any) {
-        setError(e.message ?? t("eventDetails.errorLoad"));
-      } finally {
-        setLoading(false);
+  const loadEvent = useCallback(async () => {
+    if (!eventId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const docRef = doc(db, "events", eventId);
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) {
+        setEvent(null);
+        setError(t("eventDetails.notFound"));
+        return;
       }
-    };
+      const data = snap.data() as any;
+      const ev: Event = {
+        id: snap.id,
+        title: data.title,
+        description: data.description,
+        tasks: data.tasks,
+        category: data.category,
+        locationText: data.locationText,
+        dateTime: data.dateTime?.toDate?.() ?? new Date(),
+        createdBy: data.createdBy,
+        maxVolunteers: data.maxVolunteers,
+        currentVolunteers: data.currentVolunteers,
+        imageUrls: data.imageUrls || [],
+      };
+      setEvent(ev);
 
-    load();
-  }, [eventId, appUser, t]);
+      if (appUser) {
+        await checkParticipation(ev.id, appUser.id);
+        await checkFavorite(ev.id, appUser.id);
+      } else {
+        setIsSignedUp(false);
+        setParticipationId(null);
+        setFavoriteId(null);
+      }
+    } catch (e: any) {
+      setError(e.message ?? t("eventDetails.errorLoad"));
+    } finally {
+      setLoading(false);
+    }
+  }, [appUser, eventId, t]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadEvent();
+    }, [loadEvent])
+  );
 
   // Determine whether the current user has already signed up for this event.
   const checkParticipation = async (eventId: string, userId: string) => {
@@ -114,7 +131,13 @@ const EventDetailsScreen: React.FC = () => {
       where("status", "==", "signed_up")
     );
     const participationSnapshot = await getDocs(participationQuery);
-    setIsSignedUp(!participationSnapshot.empty);
+    if (!participationSnapshot.empty) {
+      setIsSignedUp(true);
+      setParticipationId(participationSnapshot.docs[0].id);
+    } else {
+      setIsSignedUp(false);
+      setParticipationId(null);
+    }
   };
 
   // Look up the favourite document so we can display correct heart state and support toggling.
@@ -144,7 +167,7 @@ const EventDetailsScreen: React.FC = () => {
 
     try {
       // create participation
-      await addDoc(collection(db, "participations"), {
+      const participationDoc = await addDoc(collection(db, "participations"), {
         userId: appUser.id,
         eventId: event.id,
         status: "signed_up",
@@ -154,7 +177,7 @@ const EventDetailsScreen: React.FC = () => {
       // update capacity (simplified; for production use a transaction)
       const docRef = doc(db, "events", event.id);
       await updateDoc(docRef, {
-        currentVolunteers: event.currentVolunteers + 1,
+        currentVolunteers: increment(1),
       });
 
       setEvent({
@@ -162,8 +185,33 @@ const EventDetailsScreen: React.FC = () => {
         currentVolunteers: event.currentVolunteers + 1,
       });
       setIsSignedUp(true);
+      setParticipationId(participationDoc.id);
     } catch (e: any) {
       setError(e.message ?? t("eventDetails.errorSignUp"));
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!event || !appUser || !participationId) return;
+    setError(null);
+    try {
+      setWithdrawing(true);
+      const participationRef = doc(db, "participations", participationId);
+      await updateDoc(participationRef, { status: "withdrawn" });
+
+      const eventRef = doc(db, "events", event.id);
+      await updateDoc(eventRef, { currentVolunteers: increment(-1) });
+
+      setEvent({
+        ...event,
+        currentVolunteers: Math.max(event.currentVolunteers - 1, 0),
+      });
+      setIsSignedUp(false);
+      setParticipationId(null);
+    } catch (e: any) {
+      setError(e.message ?? t("eventDetails.errorWithdraw"));
+    } finally {
+      setWithdrawing(false);
     }
   };
 
@@ -186,6 +234,74 @@ const EventDetailsScreen: React.FC = () => {
     } catch (e: any) {
       setError(e.message ?? t("eventDetails.errorFavorite"));
     }
+  };
+
+  const performDeleteEvent = async () => {
+    if (!event || !appUser) return;
+    setError(null);
+    try {
+      setDeleting(true);
+      const eventRef = doc(db, "events", event.id);
+      const snapshot = await getDoc(eventRef);
+      if (!snapshot.exists()) {
+        setError(t("eventDetails.notFound"));
+        setDeleting(false);
+        return;
+      }
+      const eventData = snapshot.data() as any;
+      if (eventData.createdBy !== appUser.id) {
+        setError(t("eventDetails.errorNotOwner"));
+        setDeleting(false);
+        return;
+      }
+
+      const participationSnap = await getDocs(
+        query(
+          collection(db, "participations"),
+          where("eventId", "==", event.id)
+        )
+      );
+      const favoriteSnap = await getDocs(
+        query(collection(db, "favorites"), where("eventId", "==", event.id))
+      );
+
+      await Promise.all([
+        ...participationSnap.docs.map((d) => deleteDoc(d.ref)),
+        ...favoriteSnap.docs.map((d) => deleteDoc(d.ref)),
+      ]);
+
+      await deleteDoc(eventRef);
+      Alert.alert(
+        t("createEvent.successTitle"),
+        t("eventDetails.deleteSuccess")
+      );
+      navigation.navigate("Main", {
+        screen: "Events",
+      });
+    } catch (e: any) {
+      setError(e.message ?? t("eventDetails.errorDelete"));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteEvent = () => {
+    if (!event) return;
+    Alert.alert(
+      t("eventDetails.deleteConfirmTitle"),
+      t("eventDetails.deleteConfirmMessage"),
+      [
+        {
+          text: t("common.cancel"),
+          style: "cancel",
+        },
+        {
+          text: t("eventDetails.deleteButton"),
+          style: "destructive",
+          onPress: performDeleteEvent,
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -221,8 +337,14 @@ const EventDetailsScreen: React.FC = () => {
   }
 
   // Determine availability to show the appropriate call-to-action message.
+  const isOwner =
+    appUser?.role === "organiser" && event.createdBy === appUser.id;
   const canSignUp =
-    appUser && event.currentVolunteers < event.maxVolunteers && !isSignedUp;
+    appUser &&
+    event.currentVolunteers < event.maxVolunteers &&
+    !isSignedUp &&
+    !isOwner;
+  const canWithdraw = isSignedUp && participationId !== null;
   const heroImage = event.imageUrls?.[0];
 
   return (
@@ -348,17 +470,29 @@ const EventDetailsScreen: React.FC = () => {
                 icon="hand-coin"
                 onPress={handleSignUp}
               />
-            ) : isSignedUp ? (
-              <View style={styles.successPill}>
-                <MaterialCommunityIcons
-                  name="check-circle"
-                  size={18}
-                  color={colors.success}
+            ) : canWithdraw ? (
+              <>
+                <PrimaryButton
+                  title={
+                    withdrawing
+                      ? t("eventDetails.withdrawLoading")
+                      : t("eventDetails.withdrawButton")
+                  }
+                  icon="account-remove"
+                  onPress={handleWithdraw}
+                  disabled={withdrawing}
                 />
-                <Text style={styles.successText}>
-                  {t("eventDetails.signedUpLabel")}
-                </Text>
-              </View>
+                <View style={styles.successPill}>
+                  <MaterialCommunityIcons
+                    name="check-circle"
+                    size={18}
+                    color={colors.success}
+                  />
+                  <Text style={styles.successText}>
+                    {t("eventDetails.signedUpLabel")}
+                  </Text>
+                </View>
+              </>
             ) : (
               <View style={styles.successPill}>
                 <MaterialCommunityIcons
@@ -381,6 +515,45 @@ const EventDetailsScreen: React.FC = () => {
                 )
               }
               style={styles.shareButton}
+            />
+          </View>
+        )}
+
+        {isOwner && (
+          <View style={styles.ownerActions}>
+            <Text style={styles.ownerLabel}>
+              {t("eventDetails.ownerActionsTitle")}
+            </Text>
+            <PrimaryButton
+              title={t("eventDetails.editButton")}
+              icon="pencil"
+              onPress={() =>
+                navigation.navigate("EditEvent", {
+                  eventId: event.id,
+                  mode: "edit",
+                })
+              }
+              style={styles.ownerButton}
+            />
+            <OutlinedButton
+              title={t("eventDetails.manageButton")}
+              icon="account-group"
+              onPress={() =>
+                navigation.navigate("ManageParticipants", {
+                  eventId: event.id,
+                })
+              }
+              style={styles.ownerButton}
+            />
+            <OutlinedButton
+              title={
+                deleting
+                  ? t("eventDetails.deleteLoading")
+                  : t("eventDetails.deleteButton")
+              }
+              icon="trash-can"
+              onPress={deleting ? () => {} : handleDeleteEvent}
+              style={[styles.ownerButton, styles.destructiveButton]}
             />
           </View>
         )}
@@ -503,6 +676,30 @@ const styles = StyleSheet.create({
   actions: {
     marginHorizontal: 20,
     marginTop: 28,
+  },
+  ownerActions: {
+    marginHorizontal: 20,
+    marginTop: 32,
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+  },
+  ownerLabel: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 12,
+  },
+  ownerButton: {
+    marginTop: 12,
+  },
+  destructiveButton: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(244, 63, 94, 0.08)",
   },
   successPill: {
     flexDirection: "row",

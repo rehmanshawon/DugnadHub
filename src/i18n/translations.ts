@@ -10,6 +10,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
   en: {
     "language.english": "English",
     "language.norwegian": "Norwegian",
+    "common.cancel": "Cancel",
 
     "login.title": "Welcome back!",
     "login.subtitle":
@@ -38,6 +39,8 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "navigation.create": "Create",
     "navigation.profile": "Profile",
     "navigation.eventDetailsTitle": "Event details",
+    "navigation.editEventTitle": "Edit event",
+    "navigation.manageParticipantsTitle": "Manage participants",
 
     "createEvent.authRequired": "You must be logged in.",
     "createEvent.organiserOnly": "Only organisers can create events.",
@@ -45,6 +48,8 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
       "Title, date/time and location are required.",
     "createEvent.errorMaxVolunteers":
       "Max volunteers must be a positive number.",
+    "createEvent.errorLoadExisting": "Unable to load the event.",
+    "createEvent.errorNotOwner": "You are not allowed to edit this event.",
     "createEvent.permissionTitle": "Permission",
     "createEvent.permissionMedia":
       "Gallery access is required to attach images.",
@@ -52,6 +57,10 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "createEvent.successTitle": "Success",
     "createEvent.successMessage": "Event created.",
     "createEvent.errorGeneric": "Failed to create event.",
+    "createEvent.loadingExisting": "Loading event details...",
+    "createEvent.editTitle": "Update your event",
+    "createEvent.editSubtitle":
+      "Adjust the details below to keep volunteers informed.",
     "createEvent.title": "Craft a spectacular gathering",
     "createEvent.subtitle":
       "Bring volunteers together with vivid imagery and clear details.",
@@ -72,6 +81,9 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "createEvent.emptyMediaSubtitle": "",
     "createEvent.button": "Publish event",
     "createEvent.loading": "Creating magic...",
+    "createEvent.loadingUpdate": "Saving changes...",
+    "createEvent.updateButton": "Save changes",
+    "createEvent.updateSuccess": "Event updated.",
     "createEvent.datePromptTitle": "Select date & time",
     "createEvent.datePromptMessage": "Enter date and time (YYYY-MM-DD HH:mm)",
     "createEvent.datePromptInvalid": "Please use the format YYYY-MM-DD HH:mm.",
@@ -94,6 +106,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "eventDetails.errorLoad": "Failed to load event.",
     "eventDetails.errorFull": "Event is full.",
     "eventDetails.errorSignUp": "Failed to sign up.",
+    "eventDetails.errorWithdraw": "Failed to withdraw.",
     "eventDetails.errorFavorite": "Failed to toggle favorite.",
     "eventDetails.sectionAbout": "About this experience",
     "eventDetails.sectionTasks": "Tasks & impact",
@@ -102,7 +115,20 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "eventDetails.volunteerCount": "{{current}}/{{max}} volunteers",
     "eventDetails.signUpButton": "Count me in",
     "eventDetails.signedUpLabel": "You are signed up for this event",
+    "eventDetails.withdrawButton": "Withdraw",
+    "eventDetails.withdrawLoading": "Withdrawing...",
     "eventDetails.fullLabel": "All spots are currently filled",
+    "eventDetails.ownerActionsTitle": "Organiser tools",
+    "eventDetails.editButton": "Edit event",
+    "eventDetails.manageButton": "Manage participants",
+    "eventDetails.deleteLoading": "Deleting...",
+    "eventDetails.deleteButton": "Delete event",
+    "eventDetails.deleteConfirmTitle": "Delete event?",
+    "eventDetails.deleteConfirmMessage":
+      "This will remove the event and all participant records.",
+    "eventDetails.deleteSuccess": "Event deleted.",
+    "eventDetails.errorDelete": "Failed to delete event.",
+    "eventDetails.errorNotOwner": "You are not allowed to manage this event.",
     "eventDetails.shareButton": "Share",
     "eventDetails.shareMessage": "Sharing is coming soon.",
 
@@ -122,10 +148,45 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "profile.signOut": "Sign out",
     "profile.role.volunteer": "volunteer",
     "profile.role.organiser": "organiser",
+
+    "manageParticipants.title": "Participants",
+    "manageParticipants.subtitle":
+      "Review and manage volunteers for this event.",
+    "manageParticipants.subtitleWithName":
+      "Volunteers registered for {{title}}.",
+    "manageParticipants.authRequired":
+      "You must be logged in to manage participants.",
+    "manageParticipants.notOwner":
+      "Only the organiser can manage participants.",
+    "manageParticipants.eventMissing": "Event could not be found.",
+    "manageParticipants.errorLoad": "Failed to load participants.",
+    "manageParticipants.errorUpdate": "Failed to update participant status.",
+    "manageParticipants.errorFull": "The event is already at maximum capacity.",
+    "manageParticipants.loading": "Loading participants...",
+    "manageParticipants.empty": "No participants have signed up yet.",
+    "manageParticipants.section.active": "Active volunteers",
+    "manageParticipants.section.withdrawn": "Withdrawn",
+    "manageParticipants.section.attended": "Attended",
+    "manageParticipants.removeAction": "Remove",
+    "manageParticipants.removeConfirmTitle": "Remove participant?",
+    "manageParticipants.removeConfirmMessage":
+      "This will remove {{name}} from the event.",
+    "manageParticipants.reinstateAction": "Reinstate",
+    "manageParticipants.reinstateConfirmTitle": "Reinstate participant?",
+    "manageParticipants.reinstateConfirmMessage":
+      "Reinstate {{name}} to the active volunteer list.",
+    "manageParticipants.status.signed_up": "Signed up",
+    "manageParticipants.status.withdrawn": "Withdrawn",
+    "manageParticipants.status.attended": "Attended",
+    "manageParticipants.joined": "Joined {{date}}",
+    "manageParticipants.joinedUnknown": "Join date unavailable",
+    "manageParticipants.capacity": "{{current}} of {{max}} spots filled",
+    "manageParticipants.unknownUser": "Unknown volunteer",
   },
   no: {
     "language.english": "Engelsk",
     "language.norwegian": "Norsk",
+    "common.cancel": "Avbryt",
 
     "login.title": "Velkommen tilbake!",
     "login.subtitle":
@@ -154,6 +215,8 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "navigation.create": "Opprett",
     "navigation.profile": "Profil",
     "navigation.eventDetailsTitle": "Arrangementsdetaljer",
+    "navigation.editEventTitle": "Rediger arrangement",
+    "navigation.manageParticipantsTitle": "Administrer deltakere",
 
     "createEvent.authRequired": "Du må være innlogget.",
     "createEvent.organiserOnly": "Bare arrangører kan opprette arrangementer.",
@@ -161,6 +224,9 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
       "Tittel, dato/klokkeslett og sted er påkrevd.",
     "createEvent.errorMaxVolunteers":
       "Maks antall frivillige må være et positivt tall.",
+    "createEvent.errorLoadExisting": "Kunne ikke laste arrangementet.",
+    "createEvent.errorNotOwner":
+      "Du har ikke tilgang til å redigere dette arrangementet.",
     "createEvent.permissionTitle": "Tillatelse",
     "createEvent.permissionMedia":
       "Tilgang til galleri er nødvendig for å legge til bilder.",
@@ -168,6 +234,10 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "createEvent.successTitle": "Suksess",
     "createEvent.successMessage": "Arrangement opprettet.",
     "createEvent.errorGeneric": "Kunne ikke opprette arrangement.",
+    "createEvent.loadingExisting": "Laster arrangementsdetaljer...",
+    "createEvent.editTitle": "Oppdater arrangementet ditt",
+    "createEvent.editSubtitle":
+      "Justér detaljene nedenfor for å holde frivillige informert.",
     "createEvent.title": "Skap et spektakulært arrangement",
     "createEvent.subtitle":
       "Samle frivillige med tydelige detaljer og levende bilder.",
@@ -188,6 +258,9 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "createEvent.emptyMediaSubtitle": "",
     "createEvent.button": "Publiser arrangement",
     "createEvent.loading": "Oppretter magi...",
+    "createEvent.loadingUpdate": "Lagrer endringer...",
+    "createEvent.updateButton": "Lagre endringer",
+    "createEvent.updateSuccess": "Arrangement oppdatert.",
     "createEvent.datePromptTitle": "Velg dato og klokkeslett",
     "createEvent.datePromptMessage": "Skriv inn dato og tid (ÅÅÅÅ-MM-DD TT:mm)",
     "createEvent.datePromptInvalid": "Bruk formatet ÅÅÅÅ-MM-DD TT:mm.",
@@ -210,6 +283,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "eventDetails.errorLoad": "Kunne ikke laste arrangement.",
     "eventDetails.errorFull": "Arrangementet er fullt.",
     "eventDetails.errorSignUp": "Kunne ikke registrere deg.",
+    "eventDetails.errorWithdraw": "Kunne ikke melde deg av.",
     "eventDetails.errorFavorite": "Kunne ikke oppdatere favoritt.",
     "eventDetails.sectionAbout": "Om denne opplevelsen",
     "eventDetails.sectionTasks": "Oppgaver og innvirkning",
@@ -218,7 +292,21 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "eventDetails.volunteerCount": "{{current}}/{{max}} frivillige",
     "eventDetails.signUpButton": "Jeg blir med",
     "eventDetails.signedUpLabel": "Du er påmeldt dette arrangementet",
+    "eventDetails.withdrawButton": "Meld meg av",
+    "eventDetails.withdrawLoading": "Melder deg av...",
     "eventDetails.fullLabel": "Alle plasser er fylt opp",
+    "eventDetails.ownerActionsTitle": "Arrangørverktøy",
+    "eventDetails.editButton": "Rediger arrangement",
+    "eventDetails.manageButton": "Administrer deltakere",
+    "eventDetails.deleteLoading": "Sletter...",
+    "eventDetails.deleteButton": "Slett arrangement",
+    "eventDetails.deleteConfirmTitle": "Slette arrangement?",
+    "eventDetails.deleteConfirmMessage":
+      "Dette fjerner arrangementet og alle deltakerdata.",
+    "eventDetails.deleteSuccess": "Arrangement slettet.",
+    "eventDetails.errorDelete": "Kunne ikke slette arrangement.",
+    "eventDetails.errorNotOwner":
+      "Du har ikke tilgang til å administrere dette arrangementet.",
     "eventDetails.shareButton": "Del",
     "eventDetails.shareMessage": "Deling kommer snart.",
 
@@ -238,5 +326,39 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "profile.signOut": "Logg ut",
     "profile.role.volunteer": "frivillig",
     "profile.role.organiser": "arrangør",
+
+    "manageParticipants.title": "Deltakere",
+    "manageParticipants.subtitle":
+      "Se og administrer frivillige for dette arrangementet.",
+    "manageParticipants.subtitleWithName":
+      "Frivillige registrert for {{title}}.",
+    "manageParticipants.authRequired":
+      "Du må være innlogget for å administrere deltakere.",
+    "manageParticipants.notOwner":
+      "Bare arrangøren kan administrere deltakere.",
+    "manageParticipants.eventMissing": "Fant ikke arrangementet.",
+    "manageParticipants.errorLoad": "Kunne ikke laste deltakere.",
+    "manageParticipants.errorUpdate": "Kunne ikke oppdatere deltakerstatus.",
+    "manageParticipants.errorFull": "Arrangementet er allerede fullt.",
+    "manageParticipants.loading": "Laster deltakere...",
+    "manageParticipants.empty": "Ingen deltakere har meldt seg på ennå.",
+    "manageParticipants.section.active": "Aktive frivillige",
+    "manageParticipants.section.withdrawn": "Trukket seg",
+    "manageParticipants.section.attended": "Deltatt",
+    "manageParticipants.removeAction": "Fjern",
+    "manageParticipants.removeConfirmTitle": "Fjern deltaker?",
+    "manageParticipants.removeConfirmMessage":
+      "Dette vil fjerne {{name}} fra arrangementet.",
+    "manageParticipants.reinstateAction": "Gjenopprett",
+    "manageParticipants.reinstateConfirmTitle": "Gjenopprett deltaker?",
+    "manageParticipants.reinstateConfirmMessage":
+      "Gjenopprett {{name}} til den aktive frivilliglisten.",
+    "manageParticipants.status.signed_up": "Påmeldt",
+    "manageParticipants.status.withdrawn": "Trukket",
+    "manageParticipants.status.attended": "Deltatt",
+    "manageParticipants.joined": "Ble med {{date}}",
+    "manageParticipants.joinedUnknown": "Ingen påmeldingsdato tilgjengelig",
+    "manageParticipants.capacity": "{{current}} av {{max}} plasser fylt",
+    "manageParticipants.unknownUser": "Ukjent frivillig",
   },
 };

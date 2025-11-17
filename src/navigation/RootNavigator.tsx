@@ -15,6 +15,7 @@ import {
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -26,6 +27,7 @@ import EventListScreen from "../screens/Events/EventListScreen";
 import MyEventsScreen from "../screens/Events/MyEventsScreen";
 import ProfileScreen from "../screens/Profile/ProfileScreen";
 import { colors } from "../theme/colors";
+import ManageParticipantsScreen from "../screens/Events/ManageParticipantsScreen";
 
 type AuthStackParamList = {
   Login: undefined;
@@ -35,7 +37,7 @@ type AuthStackParamList = {
 type MainTabParamList = {
   Events: undefined;
   MyEvents: undefined;
-  CreateEvent?: undefined;
+  CreateEvent?: { eventId?: string; mode?: "create" | "edit" } | undefined;
   Profile: undefined;
 };
 
@@ -43,6 +45,8 @@ export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList> | undefined;
   Main: NavigatorScreenParams<MainTabParamList> | undefined;
   EventDetails: { eventId: string };
+  EditEvent: { eventId: string; mode?: "create" | "edit" };
+  ManageParticipants: { eventId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -71,6 +75,7 @@ const AuthStackNavigator = () => (
 const MainTabs = () => {
   const { appUser } = useAuth();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -79,8 +84,8 @@ const MainTabs = () => {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 70,
-          paddingBottom: 10,
+          height: 64 + insets.bottom,
+          paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 10,
         },
         tabBarLabelStyle: {
@@ -179,6 +184,16 @@ const RootNavigator = () => {
               name="EventDetails"
               component={EventDetailsScreen}
               options={{ title: t("navigation.eventDetailsTitle") }}
+            />
+            <Stack.Screen
+              name="EditEvent"
+              component={CreateEventScreen}
+              options={{ title: t("navigation.editEventTitle") }}
+            />
+            <Stack.Screen
+              name="ManageParticipants"
+              component={ManageParticipantsScreen}
+              options={{ title: t("navigation.manageParticipantsTitle") }}
             />
           </>
         )}
