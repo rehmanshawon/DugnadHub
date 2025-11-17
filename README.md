@@ -188,5 +188,3 @@ npx expo run:android
 - Expo Go stuck on splash: open the in-app developer menu → Reload or toggle Remote JS Debugging to surface errors in the Metro console.
 
 ---
-
-With the Firebase project configured and the Expo environment running, your client can sign up with their own email to seed Firestore and explore the organiser features by promoting their role directly in the Firestore console.
