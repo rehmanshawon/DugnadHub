@@ -14,9 +14,9 @@ import {
   collection,
   query,
   where,
-  getDocs,
   doc,
   getDoc,
+  onSnapshot,
   updateDoc,
 } from "firebase/firestore";
 
@@ -38,81 +38,120 @@ const ProfileScreen: React.FC = () => {
   const [favorites, setFavorites] = useState<Event[]>([]);
 
   useEffect(() => {
-    // Fetch participations and favourites so stats and lists stay current.
-    const loadProfileData = async () => {
-      if (!appUser) return;
+    if (!appUser?.id) {
+      setStats({ total: 0, upcoming: 0, past: 0 });
+      setFavorites([]);
+      return;
+    }
 
-      // Pull all active participations for the signed-in user.
-      const participationQuery = query(
-        collection(db, "participations"),
-        where("userId", "==", appUser.id),
-        where("status", "==", "signed_up")
-      );
-      const participationSnapshot = await getDocs(participationQuery);
-      const participations: Participation[] = participationSnapshot.docs.map(
-        (docSnap) => {
-          const data = docSnap.data() as any;
-          return {
-            id: docSnap.id,
-            userId: data.userId,
-            eventId: data.eventId,
-            status: data.status,
-            createdAt: data.createdAt?.toDate?.() ?? new Date(),
-          };
+    let isMounted = true;
+
+    const participationQuery = query(
+      collection(db, "participations"),
+      where("userId", "==", appUser.id),
+      where("status", "==", "signed_up")
+    );
+
+    const participationUnsubscribe = onSnapshot(
+      participationQuery,
+      async (snapshot) => {
+        try {
+          const participations: Participation[] = snapshot.docs.map(
+            (docSnap) => {
+              const data = docSnap.data() as any;
+              return {
+                id: docSnap.id,
+                userId: data.userId,
+                eventId: data.eventId,
+                status: data.status,
+                createdAt: data.createdAt?.toDate?.() ?? new Date(),
+              };
+            }
+          );
+
+          const now = new Date();
+          const eventDates = await Promise.all(
+            participations.map(async (participation) => {
+              const eventSnapshot = await getDoc(
+                doc(db, "events", participation.eventId)
+              );
+
+              if (!eventSnapshot.exists()) return null;
+              const eventData = eventSnapshot.data() as any;
+              return eventData.dateTime?.toDate?.() ?? new Date();
+            })
+          );
+
+          let upcoming = 0;
+          let past = 0;
+          for (const eventDate of eventDates) {
+            if (!eventDate) continue;
+            if (eventDate >= now) upcoming += 1;
+            else past += 1;
+          }
+
+          if (isMounted) {
+            setStats({ total: participations.length, upcoming, past });
+          }
+        } catch (error) {
+          console.warn("Failed to update participation stats", error);
         }
-      );
-
-      const now = new Date();
-      let upcoming = 0;
-      let past = 0;
-      // Calculate participation stats relative to current time.
-      for (const participation of participations) {
-        const eventSnapshot = await getDoc(
-          doc(db, "events", participation.eventId)
-        );
-        if (!eventSnapshot.exists()) continue;
-        const eventData = eventSnapshot.data() as any;
-        const eventDate = eventData.dateTime?.toDate?.() ?? new Date();
-        if (eventDate >= now) upcoming += 1;
-        else past += 1;
       }
-      setStats({ total: participations.length, upcoming, past });
+    );
 
-      // Build the list of favourited event details for quick navigation.
-      const favoritesQuery = query(
-        collection(db, "favorites"),
-        where("userId", "==", appUser.id)
-      );
-      const favoritesSnapshot = await getDocs(favoritesQuery);
-      const favoriteEvents: Event[] = [];
+    const favoritesQuery = query(
+      collection(db, "favorites"),
+      where("userId", "==", appUser.id)
+    );
 
-      for (const favoriteDoc of favoritesSnapshot.docs) {
-        const favoriteData = favoriteDoc.data() as any;
-        const eventSnapshot = await getDoc(
-          doc(db, "events", favoriteData.eventId)
-        );
-        if (!eventSnapshot.exists()) continue;
-        const eventData = eventSnapshot.data() as any;
-        favoriteEvents.push({
-          id: eventSnapshot.id,
-          title: eventData.title,
-          description: eventData.description,
-          tasks: eventData.tasks,
-          category: eventData.category,
-          locationText: eventData.locationText,
-          dateTime: eventData.dateTime?.toDate?.() ?? new Date(),
-          createdBy: eventData.createdBy,
-          maxVolunteers: eventData.maxVolunteers,
-          currentVolunteers: eventData.currentVolunteers,
-          imageUrls: eventData.imageUrls || [],
-        });
+    const favoritesUnsubscribe = onSnapshot(
+      favoritesQuery,
+      async (snapshot) => {
+        try {
+          const favoriteEvents = await Promise.all(
+            snapshot.docs.map(async (favoriteDoc) => {
+              const favoriteData = favoriteDoc.data() as any;
+              const eventSnapshot = await getDoc(
+                doc(db, "events", favoriteData.eventId)
+              );
+
+              if (!eventSnapshot.exists()) return null;
+              const eventData = eventSnapshot.data() as any;
+              const event: Event = {
+                id: eventSnapshot.id,
+                title: eventData.title,
+                description: eventData.description,
+                tasks: eventData.tasks,
+                category: eventData.category,
+                locationText: eventData.locationText,
+                dateTime: eventData.dateTime?.toDate?.() ?? new Date(),
+                createdBy: eventData.createdBy,
+                maxVolunteers: eventData.maxVolunteers,
+                currentVolunteers: eventData.currentVolunteers,
+                imageUrls: eventData.imageUrls || [],
+              };
+
+              return event;
+            })
+          );
+
+          if (isMounted) {
+            setFavorites(
+              favoriteEvents.filter((event): event is Event => Boolean(event))
+            );
+          }
+        } catch (error) {
+          console.warn("Failed to update favorites", error);
+        }
       }
+    );
 
-      setFavorites(favoriteEvents);
+    return () => {
+      isMounted = false;
+      participationUnsubscribe();
+      favoritesUnsubscribe();
     };
-
-    loadProfileData();
-  }, [appUser]);
+  }, [appUser?.id]);
 
   // Allow users to switch between organiser and volunteer roles; requires re-login.
   const handleRoleToggle = async () => {
@@ -225,7 +264,7 @@ const ProfileScreen: React.FC = () => {
           title={t("profile.signOut")}
           icon="logout"
           onPress={signOutUser}
-          style={{ marginHorizontal: 20, marginBottom: 28 }}
+          style={{ marginHorizontal: 20, marginBottom: 8 }}
         />
       </View>
     </SafeAreaView>
@@ -333,6 +372,7 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderRadius: 20,
     padding: 24,
+
     alignItems: "center",
     backgroundColor: colors.surface,
   },
