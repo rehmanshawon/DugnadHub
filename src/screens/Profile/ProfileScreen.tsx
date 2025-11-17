@@ -1,0 +1,345 @@
+/**
+ * ProfileScreen
+ * -------------
+ * Combines volunteer statistics, language switching, favourites, and role
+ * toggling in one place. Data is aggregated from participations and favourites so
+ * users immediately see the impact of their activity.
+ */
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
+
+import EventCard from "../../components/EventCard";
+import LanguageSwitcher from "../../components/LanguageSwitcher";
+import OutlinedButton from "../../components/OutlinedButton";
+import PrimaryButton from "../../components/PrimaryButton";
+import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
+import { db } from "../../firebaseConfig";
+import { colors } from "../../theme/colors";
+import { Event, Participation, UserRole } from "../../types";
+
+const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
+  const { appUser, signOutUser } = useAuth();
+  const { t } = useLanguage();
+  const [stats, setStats] = useState({ total: 0, upcoming: 0, past: 0 });
+  const [favorites, setFavorites] = useState<Event[]>([]);
+
+  useEffect(() => {
+    // Fetch participations and favourites so stats and lists stay current.
+    const loadProfileData = async () => {
+      if (!appUser) return;
+
+      // Pull all active participations for the signed-in user.
+      const participationQuery = query(
+        collection(db, "participations"),
+        where("userId", "==", appUser.id),
+        where("status", "==", "signed_up")
+      );
+      const participationSnapshot = await getDocs(participationQuery);
+      const participations: Participation[] = participationSnapshot.docs.map(
+        (docSnap) => {
+          const data = docSnap.data() as any;
+          return {
+            id: docSnap.id,
+            userId: data.userId,
+            eventId: data.eventId,
+            status: data.status,
+            createdAt: data.createdAt?.toDate?.() ?? new Date(),
+          };
+        }
+      );
+
+      const now = new Date();
+      let upcoming = 0;
+      let past = 0;
+      // Calculate participation stats relative to current time.
+      for (const participation of participations) {
+        const eventSnapshot = await getDoc(
+          doc(db, "events", participation.eventId)
+        );
+        if (!eventSnapshot.exists()) continue;
+        const eventData = eventSnapshot.data() as any;
+        const eventDate = eventData.dateTime?.toDate?.() ?? new Date();
+        if (eventDate >= now) upcoming += 1;
+        else past += 1;
+      }
+      setStats({ total: participations.length, upcoming, past });
+
+      // Build the list of favourited event details for quick navigation.
+      const favoritesQuery = query(
+        collection(db, "favorites"),
+        where("userId", "==", appUser.id)
+      );
+      const favoritesSnapshot = await getDocs(favoritesQuery);
+      const favoriteEvents: Event[] = [];
+
+      for (const favoriteDoc of favoritesSnapshot.docs) {
+        const favoriteData = favoriteDoc.data() as any;
+        const eventSnapshot = await getDoc(
+          doc(db, "events", favoriteData.eventId)
+        );
+        if (!eventSnapshot.exists()) continue;
+        const eventData = eventSnapshot.data() as any;
+        favoriteEvents.push({
+          id: eventSnapshot.id,
+          title: eventData.title,
+          description: eventData.description,
+          tasks: eventData.tasks,
+          category: eventData.category,
+          locationText: eventData.locationText,
+          dateTime: eventData.dateTime?.toDate?.() ?? new Date(),
+          createdBy: eventData.createdBy,
+          maxVolunteers: eventData.maxVolunteers,
+          currentVolunteers: eventData.currentVolunteers,
+          imageUrls: eventData.imageUrls || [],
+        });
+      }
+
+      setFavorites(favoriteEvents);
+    };
+
+    loadProfileData();
+  }, [appUser]);
+
+  // Allow users to switch between organiser and volunteer roles; requires re-login.
+  const handleRoleToggle = async () => {
+    if (!appUser) return;
+    const updatedRole: UserRole =
+      appUser.role === "volunteer" ? "organiser" : "volunteer";
+    await updateDoc(doc(db, "users", appUser.id), { role: updatedRole });
+    await signOutUser();
+  };
+
+  if (!appUser) {
+    // Encourage authentication while still exposing language switching.
+    return (
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <View style={[styles.screen, styles.center]}>
+          <LanguageSwitcher />
+          <Text style={styles.centerLabel}>{t("profile.loginPrompt")}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.screen}>
+        <LanguageSwitcher />
+        {/* Profile header summarises identity and participation progress. */}
+        <View style={styles.headerCard}>
+          <View style={styles.avatarPlaceholder}>
+            <MaterialCommunityIcons
+              name="account-star"
+              size={36}
+              color={colors.surface}
+            />
+          </View>
+          <Text style={styles.name}>
+            {appUser.displayName || appUser.email}
+          </Text>
+          <View style={styles.rolePill}>
+            <MaterialCommunityIcons
+              name={appUser.role === "volunteer" ? "hand-heart" : "account-tie"}
+              size={16}
+              color={colors.surface}
+            />
+            <Text style={styles.roleText}>
+              {t(`profile.role.${appUser.role}`)}
+            </Text>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={styles.statNumber}>{stats.total}</Text>
+              <Text style={styles.statLabel}>{t("profile.totalEvents")}</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statNumber}>{stats.upcoming}</Text>
+              <Text style={styles.statLabel}>{t("profile.upcoming")}</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statNumber}>{stats.past}</Text>
+              <Text style={styles.statLabel}>{t("profile.completed")}</Text>
+            </View>
+          </View>
+
+          <OutlinedButton
+            title={
+              appUser.role === "volunteer"
+                ? t("profile.switchToOrganiser")
+                : t("profile.switchToVolunteer")
+            }
+            icon="swap-horizontal"
+            onPress={handleRoleToggle}
+            active
+            style={{ alignSelf: "stretch", marginTop: 18 }}
+          />
+        </View>
+
+        {/* Favourites provide quick access to saved volunteering opportunities. */}
+        <View style={styles.sectionWrapper}>
+          <Text style={styles.sectionTitle}>
+            {t("profile.favouritesTitle")}
+          </Text>
+          {favorites.length === 0 ? (
+            <View style={styles.emptyFavorites}>
+              <MaterialCommunityIcons
+                name="heart-outline"
+                size={28}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.emptyText}>{t("profile.noFavourites")}</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={favorites}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <EventCard
+                  event={item}
+                  onPress={() =>
+                    navigation.navigate("EventDetails", { eventId: item.id })
+                  }
+                />
+              )}
+              contentInsetAdjustmentBehavior="automatic"
+            />
+          )}
+        </View>
+
+        <PrimaryButton
+          title={t("profile.signOut")}
+          icon="logout"
+          onPress={signOutUser}
+          style={{ marginHorizontal: 20, marginBottom: 28 }}
+        />
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  centerLabel: {
+    color: colors.textSecondary,
+    marginTop: 12,
+  },
+  headerCard: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    backgroundColor: colors.surface,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: colors.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
+  },
+  avatarPlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  name: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: colors.textPrimary,
+  },
+  rolePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginTop: 12,
+  },
+  roleText: {
+    color: colors.surface,
+    fontWeight: "600",
+    marginLeft: 8,
+    textTransform: "capitalize",
+  },
+  statsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 22,
+    width: "100%",
+  },
+  statBox: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+  statLabel: {
+    marginTop: 4,
+    fontSize: 12,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: colors.textMuted,
+  },
+  sectionWrapper: {
+    flex: 1,
+    marginHorizontal: 20,
+    marginTop: 24,
+  },
+  sectionTitle: {
+    color: colors.textPrimary,
+    fontWeight: "700",
+    fontSize: 18,
+    marginBottom: 12,
+  },
+  emptyFavorites: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    marginTop: 10,
+  },
+});
+
+export default ProfileScreen;
