@@ -18,6 +18,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -39,6 +40,7 @@ import ErrorBanner from "../../components/ErrorBanner";
 import PrimaryButton from "../../components/PrimaryButton";
 import OutlinedButton from "../../components/OutlinedButton";
 import { colors } from "../../theme/colors";
+import LanguageSwitcher from "../../components/LanguageSwitcher";
 
 const CreateEventScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -251,7 +253,16 @@ const CreateEventScreen: React.FC = () => {
 
         Alert.alert(
           t("createEvent.successTitle"),
-          t("createEvent.successMessage")
+          t("createEvent.successMessage"),
+          [
+            {
+              text: t("common.ok"),
+              onPress: () => navigation.navigate("Events"),
+            },
+          ],
+          {
+            onDismiss: () => navigation.navigate("Events"),
+          }
         );
         setTitle("");
         setDescription("");
@@ -331,175 +342,197 @@ const CreateEventScreen: React.FC = () => {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.container}
-      style={{ backgroundColor: colors.background }}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.title}>
-        {isEditing ? t("createEvent.editTitle") : t("createEvent.title")}
-      </Text>
-      <Text style={styles.subtitle}>
-        {isEditing ? t("createEvent.editSubtitle") : t("createEvent.subtitle")}
-      </Text>
-      <ErrorBanner message={error} />
-
-      <View style={styles.card}>
-        {/* Essentials section covers the core metadata for a volunteering event. */}
-        <Text style={styles.sectionLabel}>
-          {t("createEvent.sectionEssentials")}
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.languageWrapper}>
+          <LanguageSwitcher />
+        </View>
+        <Text style={styles.title}>
+          {isEditing ? t("createEvent.editTitle") : t("createEvent.title")}
         </Text>
-        <TextInput
-          style={styles.input}
-          placeholder={t("createEvent.eventTitlePlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          value={title}
-          onChangeText={setTitle}
-        />
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          placeholder={t("createEvent.eventDescriptionPlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          multiline
-          value={description}
-          onChangeText={setDescription}
-        />
-        <TextInput
-          style={[styles.input, styles.multiline]}
-          placeholder={t("createEvent.tasksPlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          multiline
-          value={tasks}
-          onChangeText={setTasks}
-        />
-        <Text style={styles.fieldLabel}>{t("createEvent.eventTypeLabel")}</Text>
-        <TextInput
-          style={styles.input}
-          placeholder={t("createEvent.categoryPlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          value={category}
-          onChangeText={setCategory}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder={t("createEvent.locationPlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          value={locationText}
-          onChangeText={setLocationText}
-        />
-
-        <TouchableOpacity
-          style={[styles.input, styles.dateInput]}
-          onPress={handleDateInputPress}
-        >
-          <MaterialCommunityIcons
-            name="calendar-range"
-            size={20}
-            color={colors.textSecondary}
-            style={{ marginRight: 10 }}
-          />
-          <Text style={styles.dateText}>{formattedDate}</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.fieldLabel}>
-          {t("createEvent.maxVolunteersLabel")}
+        <Text style={styles.subtitle}>
+          {isEditing
+            ? t("createEvent.editSubtitle")
+            : t("createEvent.subtitle")}
         </Text>
-        <TextInput
-          style={styles.input}
-          placeholder={t("createEvent.maxVolunteersPlaceholder")}
-          placeholderTextColor={colors.textMuted}
-          keyboardType="numeric"
-          value={maxVolunteers}
-          onChangeText={setMaxVolunteers}
-        />
-      </View>
+        <ErrorBanner message={error} />
 
-      <View style={styles.card}>
-        <Text style={styles.sectionLabel}>{t("createEvent.sectionMedia")}</Text>
-        <View style={styles.imageButtons}>
-          <OutlinedButton
-            title={t("createEvent.galleryButton")}
-            icon="image-multiple"
-            onPress={pickImageFromLibrary}
-            style={styles.mediaButton}
+        <View style={styles.card}>
+          {/* Essentials section covers the core metadata for a volunteering event. */}
+          <Text style={styles.sectionLabel}>
+            {t("createEvent.sectionEssentials")}
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder={t("createEvent.eventTitlePlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            value={title}
+            onChangeText={setTitle}
           />
-          <OutlinedButton
-            title={t("createEvent.cameraButton")}
-            icon="camera"
-            onPress={pickImageFromCamera}
-            style={[styles.mediaButton, styles.mediaButtonLast]}
+          <TextInput
+            style={[styles.input, styles.multiline]}
+            placeholder={t("createEvent.eventDescriptionPlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            multiline
+            value={description}
+            onChangeText={setDescription}
+          />
+          <TextInput
+            style={[styles.input, styles.multiline]}
+            placeholder={t("createEvent.tasksPlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            multiline
+            value={tasks}
+            onChangeText={setTasks}
+          />
+          <Text style={styles.fieldLabel}>
+            {t("createEvent.eventTypeLabel")}
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder={t("createEvent.categoryPlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            value={category}
+            onChangeText={setCategory}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder={t("createEvent.locationPlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            value={locationText}
+            onChangeText={setLocationText}
+          />
+
+          <TouchableOpacity
+            style={[styles.input, styles.dateInput]}
+            onPress={handleDateInputPress}
+          >
+            <MaterialCommunityIcons
+              name="calendar-range"
+              size={20}
+              color={colors.textSecondary}
+              style={{ marginRight: 10 }}
+            />
+            <Text style={styles.dateText}>{formattedDate}</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.fieldLabel}>
+            {t("createEvent.maxVolunteersLabel")}
+          </Text>
+          <TextInput
+            style={styles.input}
+            placeholder={t("createEvent.maxVolunteersPlaceholder")}
+            placeholderTextColor={colors.textMuted}
+            keyboardType="numeric"
+            value={maxVolunteers}
+            onChangeText={setMaxVolunteers}
           />
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {images.map((uri) => (
-            <View key={uri} style={styles.imagePreview}>
-              <Image source={{ uri }} style={styles.image} />
-              <TouchableOpacity
-                style={styles.removeBadge}
-                onPress={() =>
-                  setImages((prev) =>
-                    prev.filter((imageUri) => imageUri !== uri)
-                  )
-                }
-              >
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>
+            {t("createEvent.sectionMedia")}
+          </Text>
+          <View style={styles.imageButtons}>
+            <OutlinedButton
+              title={t("createEvent.galleryButton")}
+              icon="image-multiple"
+              onPress={pickImageFromLibrary}
+              style={styles.mediaButton}
+            />
+            <OutlinedButton
+              title={t("createEvent.cameraButton")}
+              icon="camera"
+              onPress={pickImageFromCamera}
+              style={[styles.mediaButton, styles.mediaButtonLast]}
+            />
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {images.map((uri) => (
+              <View key={uri} style={styles.imagePreview}>
+                <Image source={{ uri }} style={styles.image} />
+                <TouchableOpacity
+                  style={styles.removeBadge}
+                  onPress={() =>
+                    setImages((prev) =>
+                      prev.filter((imageUri) => imageUri !== uri)
+                    )
+                  }
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={16}
+                    color={colors.surface}
+                  />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {images.length === 0 ? (
+              <View style={styles.emptyImageState}>
                 <MaterialCommunityIcons
-                  name="close"
-                  size={16}
-                  color={colors.surface}
+                  name="image-outline"
+                  size={28}
+                  color={colors.textMuted}
                 />
-              </TouchableOpacity>
-            </View>
-          ))}
-          {images.length === 0 ? (
-            <View style={styles.emptyImageState}>
-              <MaterialCommunityIcons
-                name="image-outline"
-                size={28}
-                color={colors.textMuted}
-              />
-              <Text style={styles.emptyImageLabel}>
-                {t("createEvent.emptyMediaTitle")}
-              </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-      </View>
+                <Text style={styles.emptyImageLabel}>
+                  {t("createEvent.emptyMediaTitle")}
+                </Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        </View>
 
-      <PrimaryButton
-        title={
-          saving
-            ? isEditing
-              ? t("createEvent.loadingUpdate")
-              : t("createEvent.loading")
-            : isEditing
-            ? t("createEvent.updateButton")
-            : t("createEvent.button")
-        }
-        icon={isEditing ? "content-save" : "rocket-launch"}
-        onPress={handleSubmit}
-        disabled={saving}
-      />
-
-      {Platform.OS !== "web" ? (
-        <DateTimePickerModal
-          isVisible={pickerVisible}
-          mode="datetime"
-          onConfirm={(value) => {
-            setDateTime(value);
-            setPickerVisible(false);
-          }}
-          onCancel={() => setPickerVisible(false)}
+        <PrimaryButton
+          title={
+            saving
+              ? isEditing
+                ? t("createEvent.loadingUpdate")
+                : t("createEvent.loading")
+              : isEditing
+              ? t("createEvent.updateButton")
+              : t("createEvent.button")
+          }
+          icon={isEditing ? "content-save" : "rocket-launch"}
+          onPress={handleSubmit}
+          disabled={saving}
         />
-      ) : null}
-    </ScrollView>
+
+        {Platform.OS !== "web" ? (
+          <DateTimePickerModal
+            isVisible={pickerVisible}
+            mode="datetime"
+            onConfirm={(value) => {
+              setDateTime(value);
+              setPickerVisible(false);
+            }}
+            onCancel={() => setPickerVisible(false)}
+          />
+        ) : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  scroll: {
+    backgroundColor: colors.background,
+  },
   container: {
     padding: 20,
     paddingBottom: 80,
+  },
+  languageWrapper: {
+    alignItems: "flex-end",
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,

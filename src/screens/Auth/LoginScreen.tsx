@@ -41,7 +41,21 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       setLoading(true);
       await signInWithEmailAndPassword(auth, email, password);
     } catch (e: any) {
-      setError(e.message ?? "Failed to log in.");
+      const message = (() => {
+        const code: string | undefined = e?.code;
+        switch (code) {
+          case "auth/invalid-credential":
+          case "auth/invalid-email":
+          case "auth/wrong-password":
+          case "auth/user-not-found":
+            return t("login.errorInvalidCredentials");
+          case "auth/too-many-requests":
+            return t("login.errorTooManyRequests");
+          default:
+            return t("login.errorGeneric");
+        }
+      })();
+      setError(message);
     } finally {
       setLoading(false);
     }

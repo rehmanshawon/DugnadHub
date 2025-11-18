@@ -32,10 +32,14 @@ const EventCard: React.FC<Props> = ({ event, onPress }) => {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       {firstImage ? (
-        <Image source={{ uri: firstImage }} style={styles.image} />
+        <Image
+          source={{ uri: firstImage }}
+          style={styles.image}
+          resizeMode="cover"
+        />
       ) : (
         /* Placeholder with icon ensures layout consistency when no media is provided. */
-        <View style={[styles.image, styles.imageFallback]}>
+        <View style={styles.imageFallback}>
           <MaterialCommunityIcons
             name="image-broken-variant"
             size={30}
@@ -76,7 +80,7 @@ const EventCard: React.FC<Props> = ({ event, onPress }) => {
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: "row",
+    flexDirection: "column",
     marginHorizontal: 16,
     marginVertical: 10,
     backgroundColor: colors.surface,
@@ -89,17 +93,19 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   image: {
-    width: 100,
-    height: 100,
+    width: "100%",
+    height: 180,
   },
   imageFallback: {
+    width: "100%",
+    height: 180,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.border,
   },
   info: {
-    flex: 1,
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   title: {
     fontWeight: "700",

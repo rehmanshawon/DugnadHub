@@ -176,7 +176,9 @@ const ProfileScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screen}>
-        <LanguageSwitcher />
+        <View style={styles.languageWrapper}>
+          <LanguageSwitcher />
+        </View>
         {/* Profile header summarises identity and participation progress. */}
         <View style={styles.headerCard}>
           <View style={styles.avatarPlaceholder}>
@@ -215,17 +217,25 @@ const ProfileScreen: React.FC = () => {
             </View>
           </View>
 
-          <OutlinedButton
-            title={
-              appUser.role === "volunteer"
-                ? t("profile.switchToOrganiser")
-                : t("profile.switchToVolunteer")
-            }
-            icon="swap-horizontal"
-            onPress={handleRoleToggle}
-            active
-            style={{ alignSelf: "stretch", marginTop: 18 }}
-          />
+          <View style={styles.actionRow}>
+            <OutlinedButton
+              title={
+                appUser.role === "volunteer"
+                  ? t("profile.switchToOrganiser")
+                  : t("profile.switchToVolunteer")
+              }
+              icon="swap-horizontal"
+              onPress={handleRoleToggle}
+              active
+              style={styles.roleButton}
+            />
+            <PrimaryButton
+              title={t("profile.signOut")}
+              icon="logout"
+              onPress={signOutUser}
+              style={styles.signOutButton}
+            />
+          </View>
         </View>
 
         {/* Favourites provide quick access to saved volunteering opportunities. */}
@@ -255,16 +265,10 @@ const ProfileScreen: React.FC = () => {
                 />
               )}
               contentInsetAdjustmentBehavior="automatic"
+              contentContainerStyle={styles.favoritesContent}
             />
           )}
         </View>
-
-        <PrimaryButton
-          title={t("profile.signOut")}
-          icon="logout"
-          onPress={signOutUser}
-          style={{ marginHorizontal: 20, marginBottom: 8 }}
-        />
       </View>
     </SafeAreaView>
   );
@@ -287,6 +291,10 @@ const styles = StyleSheet.create({
   centerLabel: {
     color: colors.textSecondary,
     marginTop: 12,
+  },
+  languageWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
   },
   headerCard: {
     marginTop: 24,
@@ -378,6 +386,23 @@ const styles = StyleSheet.create({
   emptyText: {
     color: colors.textSecondary,
     marginTop: 10,
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 20,
+    width: "100%",
+  },
+  roleButton: {
+    flex: 1,
+    marginRight: 12,
+  },
+  signOutButton: {
+    flex: 1,
+  },
+  favoritesContent: {
+    paddingBottom: 24,
   },
 });
 

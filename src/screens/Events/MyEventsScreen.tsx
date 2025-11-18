@@ -155,7 +155,9 @@ const MyEventsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screen}>
-        <LanguageSwitcher />
+        <View style={styles.languageWrapper}>
+          <LanguageSwitcher />
+        </View>
         {events.length === 0 ? (
           <View style={styles.center}>
             <MaterialCommunityIcons
@@ -213,6 +215,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: "center",
     marginTop: 6,
+  },
+  languageWrapper: {
+    alignItems: "flex-end",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    marginBottom: 8,
   },
 });
 
