@@ -26,7 +26,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "login.button": "Login",
     "login.createAccount": "Create a new account",
 
-    "register.title": "Join our volunteer hub",
+    "register.title": "Start your journey with us",
     "register.subtitle":
       "Create an account and start crafting memorable experiences for your community.",
     "register.emailPlaceholder": "Email",
@@ -148,6 +148,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "profile.switchToOrganiser": "Switch to organiser",
     "profile.switchToVolunteer": "Switch to volunteer",
     "profile.favouritesTitle": "Favourite events",
+    "profile.favouritesHint": "Scroll to see all your saved events.",
     "profile.noFavourites": "You have not saved any favourites yet.",
     "profile.signOut": "Sign out",
     "profile.role.volunteer": "volunteer",
@@ -206,7 +207,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "login.button": "Logg inn",
     "login.createAccount": "Opprett en ny konto",
 
-    "register.title": "Bli med i frivillighetshuben vår",
+    "register.title": "Start reisen din hos oss",
     "register.subtitle":
       "Opprett en konto og begynn å skape minneverdige opplevelser for lokalsamfunnet ditt.",
     "register.emailPlaceholder": "E-post",
@@ -330,6 +331,7 @@ export const translations: Record<SupportedLanguage, Record<string, string>> = {
     "profile.switchToOrganiser": "Bytt til arrangør",
     "profile.switchToVolunteer": "Bytt til frivillig",
     "profile.favouritesTitle": "Favorittarrangementer",
+    "profile.favouritesHint": "Rull for å se alle favorittene dine.",
     "profile.noFavourites": "Du har ikke lagret noen favoritter ennå.",
     "profile.signOut": "Logg ut",
     "profile.role.volunteer": "frivillig",

@@ -243,6 +243,9 @@ const ProfileScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>
             {t("profile.favouritesTitle")}
           </Text>
+          {favorites.length > 0 ? (
+            <Text style={styles.scrollHint}>{t("profile.favouritesHint")}</Text>
+          ) : null}
           {favorites.length === 0 ? (
             <View style={styles.emptyFavorites}>
               <MaterialCommunityIcons
@@ -294,34 +297,35 @@ const styles = StyleSheet.create({
   },
   languageWrapper: {
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: 14,
   },
   headerCard: {
-    marginTop: 24,
+    marginTop: 16,
     marginHorizontal: 20,
     backgroundColor: colors.surface,
-    borderRadius: 28,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     alignItems: "center",
     shadowColor: colors.primary,
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
   },
   avatarPlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   name: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     color: colors.textPrimary,
   },
@@ -330,9 +334,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.accent,
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginTop: 10,
   },
   roleText: {
     color: colors.surface,
@@ -343,7 +347,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 22,
+    marginTop: 16,
     width: "100%",
   },
   statBox: {
@@ -351,27 +355,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: colors.textPrimary,
   },
   statLabel: {
-    marginTop: 4,
-    fontSize: 12,
-    letterSpacing: 1,
+    marginTop: 2,
+    fontSize: 11,
+    letterSpacing: 0.8,
     textTransform: "uppercase",
     color: colors.textMuted,
   },
   sectionWrapper: {
     flex: 1,
     marginHorizontal: 20,
-    marginTop: 24,
+    marginTop: 18,
   },
   sectionTitle: {
     color: colors.textPrimary,
     fontWeight: "700",
     fontSize: 18,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   emptyFavorites: {
     borderWidth: 1,
@@ -391,18 +395,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 20,
+    marginTop: 16,
     width: "100%",
   },
   roleButton: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 10,
   },
   signOutButton: {
     flex: 1,
   },
   favoritesContent: {
     paddingBottom: 24,
+  },
+  scrollHint: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 8,
   },
 });
 

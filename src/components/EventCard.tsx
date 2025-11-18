@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "column",
     marginHorizontal: 16,
-    marginVertical: 10,
+    marginVertical: 8,
     backgroundColor: colors.surface,
     borderRadius: 18,
     overflow: "hidden",
@@ -94,18 +94,18 @@ const styles = StyleSheet.create({
   },
   image: {
     width: "100%",
-    height: 180,
+    height: 136,
   },
   imageFallback: {
     width: "100%",
-    height: 180,
+    height: 136,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.border,
   },
   info: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   title: {
     fontWeight: "700",
